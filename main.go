@@ -2,20 +2,25 @@ package main
 
 import (
 	"context"
-	//"crypto/rand"
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"os"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
 	libp2phost "github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
-	//"github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/libp2p/go-libp2p-kad-dht"
 	ma "github.com/multiformats/go-multiaddr"
 
+	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log"
+	mh "github.com/multiformats/go-multihash"
 	"github.com/urfave/cli/v2"
 )
+
+const cidCount = 64 // arbitrary
 
 var log = logging.Logger("main")
 
@@ -44,6 +49,13 @@ var (
 	}
 )
 
+var cids []cid.Cid
+var bootnodes []peer.AddrInfo
+
+func bootstrapPeersFunc() []peer.AddrInfo {
+	return bootnodes
+}
+
 func main() {
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
@@ -51,11 +63,13 @@ func main() {
 }
 
 func run(c *cli.Context) error {
-	_ = logging.SetLogLevel("main", "info")
+	_ = logging.SetLogLevel("main", "debug")
+
+	cids = getTestCIDs(cidCount)
 
 	const basePort = 6000
 
-	bootnodes := []peer.AddrInfo{}
+	//bootnodes := []peer.AddrInfo{}
 	hosts := []*host{}
 
 	count := int(c.Uint(flagCount))
@@ -63,10 +77,9 @@ func run(c *cli.Context) error {
 	for i := 0; i < count; i++ {
 		log.Infof("starting node %d", i)
 		cfg := &config{
-			Ctx:       context.Background(),
-			Port:      uint16(basePort + i),
-			Bootnodes: bootnodes,
-			Index:     i,
+			Ctx:   context.Background(),
+			Port:  uint16(basePort + i),
+			Index: i,
 		}
 
 		h, err := NewHost(cfg)
@@ -74,15 +87,20 @@ func run(c *cli.Context) error {
 			return err
 		}
 
-		err = h.Start()
+		bootnodes = append(bootnodes, h.addrInfo())
+		hosts = append(hosts, h)
+	}
+
+	time.Sleep(time.Second * 2)
+
+	for i, h := range hosts {
+		err := h.Start()
 		if err != nil {
 			return err
 		}
 
-		time.Sleep(time.Millisecond * 200)
+		time.Sleep(time.Second)
 		log.Infof("node %d started: %s", i, h.addrInfo())
-		bootnodes = append(bootnodes, h.addrInfo())
-		hosts = append(hosts, h)
 	}
 
 	duration, err := time.ParseDuration(fmt.Sprintf("%ds", c.Uint(flagDuration)))
@@ -101,19 +119,36 @@ func run(c *cli.Context) error {
 	return nil
 }
 
+func getTestCIDs(count int) []cid.Cid {
+	const length = 32
+	const code = mh.SHA2_256
+	const base = "dhttest"
+	const codecType = cid.Raw // TODO: is this right?
+
+	cids := make([]cid.Cid, count)
+	for i := 0; i < count; i++ {
+		mh, err := mh.Sum(append([]byte(base), byte(i)), code, length)
+		if err != nil {
+			panic(err)
+		}
+
+		cids[i] = cid.NewCidV1(codecType, mh)
+	}
+	return cids
+}
+
 type config struct {
-	Ctx       context.Context
-	Port      uint16
-	KeyFile   string
-	Bootnodes []peer.AddrInfo
-	Index     int
+	Ctx     context.Context
+	Port    uint16
+	KeyFile string
+	Index   int
 }
 
 type host struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	h         libp2phost.Host
-	bootnodes []peer.AddrInfo
+	ctx    context.Context
+	cancel context.CancelFunc
+	h      libp2phost.Host
+	dht    *dht.IpfsDHT
 }
 
 func NewHost(cfg *config) (*host, error) {
@@ -146,12 +181,21 @@ func NewHost(cfg *config) (*host, error) {
 		return nil, err
 	}
 
+	dht, err := dht.New(cfg.Ctx, h, []dht.Option{
+		//dht.PrefixLookups(0),
+		dht.Mode(dht.ModeAutoServer),
+		dht.BootstrapPeersFunc(bootstrapPeersFunc),
+	}...)
+	if err != nil {
+		return nil, err
+	}
+
 	ourCtx, cancel := context.WithCancel(cfg.Ctx)
 	return &host{
-		ctx:       ourCtx,
-		cancel:    cancel,
-		h:         h,
-		bootnodes: cfg.Bootnodes,
+		ctx:    ourCtx,
+		cancel: cancel,
+		h:      h,
+		dht:    dht,
 	}, nil
 }
 
@@ -168,44 +212,35 @@ func (h *host) Start() error {
 		return err
 	}
 
-	// for topic := range h.topics {
-	// 	go func() {
-	// 		err := h.receive(topic)
-	// 		if err != nil {
-	// 			log.Warnf("receive loop exiting: %s", err)
-	// 			return
-	// 		}
-	// 	}()
-	// }
+	randDuration, err := rand.Int(rand.Reader, big.NewInt(20))
+	if err != nil {
+		return err
+	}
 
-	// randDuration, err := rand.Int(rand.Reader, big.NewInt(20))
-	// if err != nil {
-	// 	return err
-	// }
+	randIdx, err := rand.Int(rand.Reader, big.NewInt(cidCount))
+	if err != nil {
+		return err
+	}
 
-	// ticker := time.NewTicker(time.Second * time.Duration(20+randDuration.Int64()))
-	// go func() {
-	// 	for {
-	// 		select {
-	// 		case <-h.ctx.Done():
-	// 			ticker.Stop()
-	// 			return
-	// 		case <-ticker.C:
-	// 			ok := true
-	// 			go func() {
-	// 				err := h.publishRandomMessages()
-	// 				if err != nil {
-	// 					log.Warnf("send loop exiting: %s", err)
-	// 					ok = false
-	// 					return
-	// 				}
-	// 			}()
-	// 			if !ok {
-	// 				return
-	// 			}
-	// 		}
-	// 	}
-	// }()
+	ticker := time.NewTicker(time.Second * time.Duration(10+randDuration.Int64()))
+	go func() {
+		for {
+			select {
+			case <-h.ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				cid := cids[randIdx.Int64()]
+				err := h.dht.Provide(h.ctx, cid, true)
+				if err != nil {
+					log.Warnf("%s failed to provide cid: %s", h.h.ID(), err)
+					continue
+				}
+
+				log.Infof("%s provided cid %s", h.h.ID(), cid)
+			}
+		}
+	}()
 
 	return nil
 }
@@ -221,7 +256,11 @@ func (h *host) Stop() error {
 // bootstrap connects the host to the configured bootnodes
 func (h *host) bootstrap() error {
 	failed := 0
-	for _, addrInfo := range h.bootnodes {
+	for _, addrInfo := range bootnodes {
+		if addrInfo.ID == h.h.ID() {
+			continue
+		}
+
 		log.Debugf("bootstrapping to peer: peer=%s", addrInfo.ID)
 		err := h.h.Connect(h.ctx, addrInfo)
 		if err != nil {
@@ -230,8 +269,16 @@ func (h *host) bootstrap() error {
 		}
 	}
 
-	if failed == len(h.bootnodes) && len(h.bootnodes) != 0 {
+	if failed == len(bootnodes) && len(bootnodes) != 0 {
 		return errFailedToBootstrap
+	}
+
+	time.Sleep(time.Second)
+	log.Infof("%s peer count: %d", h.h.ID(), len(h.h.Network().Peers()))
+
+	err := h.dht.Bootstrap(h.ctx)
+	if err != nil {
+		return err
 	}
 
 	return nil
