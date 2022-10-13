@@ -160,6 +160,7 @@ func getTestCIDs(count int) []cid.Cid {
 		}
 
 		cids[i] = cid.NewCidV1(codecType, mh)
+		log.Infof("test CID: %s", cids[i])
 	}
 	return cids
 }
@@ -264,7 +265,7 @@ func (h *host) Start() error {
 					getRandTestCID(),
 				})
 
-				h.lookup(getRandTestCID())
+				_ = h.lookup(getRandTestCID())
 			}
 		}
 	}()
@@ -301,15 +302,16 @@ func (h *host) provide(cids []cid.Cid) {
 	}
 }
 
-func (h *host) lookup(target cid.Cid) {
+func (h *host) lookup(target cid.Cid) []peer.AddrInfo {
 	providers, err := h.dht.FindProviders(h.ctx, target)
 	if err != nil {
 		log.Warnf("failed to find any providers for cid %s: %s", target, err)
-		return
+		return nil
 	}
 
 	// TODO: track providers and check for success/failure
 	log.Infof("found providers for cid %s: %s", target, providers)
+	return providers
 }
 
 // bootstrap connects the host to the configured bootnodes

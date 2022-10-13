@@ -2,15 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc/v2"
-
 	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 // Server represents the JSON-RPC server
@@ -38,9 +40,14 @@ func NewServer(hosts []*host) (*Server, error) {
 	r := mux.NewRouter()
 	r.Handle("/", rpcServer)
 
+	headersOk := handlers.AllowedHeaders([]string{"content-type", "username", "password"})
+	methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS"})
+	originsOk := handlers.AllowedOrigins([]string{"*"})
+
 	server := &http.Server{
 		Addr:              ln.Addr().String(),
 		ReadHeaderTimeout: time.Second,
+		Handler:           handlers.CORS(headersOk, methodsOk, originsOk)(r),
 	}
 
 	return &Server{
@@ -77,9 +84,33 @@ func newDHTService(hosts []*host) *DHTService {
 }
 
 type ProvideRequest struct {
-	CIDs []cid.Cid `json:"cids"`
+	HostIndex int       `json:"hostIndex"`
+	CIDs      []cid.Cid `json:"cids"`
 }
 
 func (s *DHTService) Provide(_ *http.Request, req *ProvideRequest, _ *interface{}) error {
+	if req.HostIndex >= len(s.hosts) {
+		return errors.New("host index too high")
+	}
+
+	s.hosts[req.HostIndex].provide(req.CIDs)
+	return nil
+}
+
+type LookupRequest struct {
+	HostIndex int     `json:"hostIndex"`
+	Target    cid.Cid `json:"cid"`
+}
+
+type LookupResponse struct {
+	Providers []peer.AddrInfo
+}
+
+func (s *DHTService) Lookup(_ *http.Request, req *LookupRequest, resp *LookupResponse) error {
+	if req.HostIndex >= len(s.hosts) {
+		return errors.New("host index too high")
+	}
+
+	resp.Providers = s.hosts[req.HostIndex].lookup(req.Target)
 	return nil
 }
