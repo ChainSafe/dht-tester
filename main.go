@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -25,8 +26,10 @@ const cidCount = 64 // arbitrary
 var log = logging.Logger("main")
 
 var (
-	flagCount    = "count"
-	flagDuration = "duration"
+	flagCount        = "count"
+	flagDuration     = "duration"
+	flagAutoTest     = "auto"
+	flagPrefixLength = "prefix-length"
 
 	app = &cli.App{
 		Name:                 "dht-tester",
@@ -44,6 +47,16 @@ var (
 				Name:  flagDuration,
 				Usage: "length of time to run simulation in seconds",
 				Value: 60,
+			},
+			&cli.BoolFlag{
+				Name:  flagAutoTest,
+				Usage: "automatically provide and look up test CIDs",
+				Value: false,
+			},
+			&cli.UintFlag{
+				Name:  flagPrefixLength,
+				Usage: "set prefix length for lookups; set to 0 to look up full double-hash",
+				Value: 0,
 			},
 		},
 	}
@@ -63,23 +76,26 @@ func main() {
 }
 
 func run(c *cli.Context) error {
-	_ = logging.SetLogLevel("main", "debug")
+	_ = logging.SetLogLevel("main", "info")
 
 	cids = getTestCIDs(cidCount)
 
 	const basePort = 6000
 
-	//bootnodes := []peer.AddrInfo{}
 	hosts := []*host{}
 
 	count := int(c.Uint(flagCount))
+	autoTest := c.Bool(flagAutoTest)
+	prefixLength := int(c.Uint(flagPrefixLength))
 
 	for i := 0; i < count; i++ {
 		log.Infof("starting node %d", i)
 		cfg := &config{
-			Ctx:   context.Background(),
-			Port:  uint16(basePort + i),
-			Index: i,
+			Ctx:          context.Background(),
+			Port:         uint16(basePort + i),
+			Index:        i,
+			AutoTest:     autoTest,
+			PrefixLength: prefixLength,
 		}
 
 		h, err := NewHost(cfg)
@@ -103,6 +119,16 @@ func run(c *cli.Context) error {
 		log.Infof("node %d started: %s", i, h.addrInfo())
 	}
 
+	server, err := NewServer(hosts)
+	if err != nil {
+		return err
+	}
+
+	err = server.Start()
+	if err != nil {
+		return err
+	}
+
 	duration, err := time.ParseDuration(fmt.Sprintf("%ds", c.Uint(flagDuration)))
 	if err != nil {
 		return err
@@ -116,6 +142,7 @@ func run(c *cli.Context) error {
 		}
 	}
 
+	_ = server.Stop()
 	return nil
 }
 
@@ -138,22 +165,25 @@ func getTestCIDs(count int) []cid.Cid {
 }
 
 type config struct {
-	Ctx     context.Context
-	Port    uint16
-	KeyFile string
-	Index   int
+	Ctx          context.Context
+	Port         uint16
+	KeyFile      string
+	Index        int
+	AutoTest     bool
+	PrefixLength int
 }
 
 type host struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	h      libp2phost.Host
-	dht    *dht.IpfsDHT
+	ctx      context.Context
+	cancel   context.CancelFunc
+	h        libp2phost.Host
+	dht      *dht.IpfsDHT
+	autoTest bool
 }
 
 func NewHost(cfg *config) (*host, error) {
 	if cfg.KeyFile == "" {
-		cfg.KeyFile = fmt.Sprintf("node-%d.key", cfg.Index)
+		cfg.KeyFile = path.Join(os.TempDir(), fmt.Sprintf("node-%d.key", cfg.Index))
 	}
 
 	key, err := loadKey(cfg.KeyFile)
@@ -182,7 +212,7 @@ func NewHost(cfg *config) (*host, error) {
 	}
 
 	dht, err := dht.New(cfg.Ctx, h, []dht.Option{
-		//dht.PrefixLookups(0),
+		dht.PrefixLookups(cfg.PrefixLength),
 		dht.Mode(dht.ModeAutoServer),
 		dht.BootstrapPeersFunc(bootstrapPeersFunc),
 	}...)
@@ -192,10 +222,11 @@ func NewHost(cfg *config) (*host, error) {
 
 	ourCtx, cancel := context.WithCancel(cfg.Ctx)
 	return &host{
-		ctx:    ourCtx,
-		cancel: cancel,
-		h:      h,
-		dht:    dht,
+		ctx:      ourCtx,
+		cancel:   cancel,
+		h:        h,
+		dht:      dht,
+		autoTest: cfg.AutoTest,
 	}, nil
 }
 
@@ -217,12 +248,7 @@ func (h *host) Start() error {
 		return err
 	}
 
-	randIdx, err := rand.Int(rand.Reader, big.NewInt(cidCount))
-	if err != nil {
-		return err
-	}
-
-	ticker := time.NewTicker(time.Second * time.Duration(10+randDuration.Int64()))
+	ticker := time.NewTicker(time.Second * time.Duration(3+randDuration.Int64()))
 	go func() {
 		for {
 			select {
@@ -230,19 +256,29 @@ func (h *host) Start() error {
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				cid := cids[randIdx.Int64()]
-				err := h.dht.Provide(h.ctx, cid, true)
-				if err != nil {
-					log.Warnf("%s failed to provide cid: %s", h.h.ID(), err)
+				if !h.autoTest {
 					continue
 				}
 
-				log.Infof("%s provided cid %s", h.h.ID(), cid)
+				h.provide([]cid.Cid{
+					getRandTestCID(),
+				})
+
+				h.lookup(getRandTestCID())
 			}
 		}
 	}()
 
 	return nil
+}
+
+func getRandTestCID() cid.Cid {
+	randIdx, err := rand.Int(rand.Reader, big.NewInt(cidCount))
+	if err != nil {
+		panic(err)
+	}
+
+	return cids[randIdx.Int64()]
 }
 
 func (h *host) Stop() error {
@@ -251,6 +287,29 @@ func (h *host) Stop() error {
 		return fmt.Errorf("failed to close libp2p host: %w", err)
 	}
 	return nil
+}
+
+func (h *host) provide(cids []cid.Cid) {
+	for _, cid := range cids {
+		err := h.dht.Provide(h.ctx, cid, true)
+		if err != nil {
+			log.Warnf("%s failed to provide cid: %s", h.h.ID(), err)
+			continue
+		}
+
+		log.Infof("%s provided cid %s", h.h.ID(), cid)
+	}
+}
+
+func (h *host) lookup(target cid.Cid) {
+	providers, err := h.dht.FindProviders(h.ctx, target)
+	if err != nil {
+		log.Warnf("failed to find any providers for cid %s: %s", target, err)
+		return
+	}
+
+	// TODO: track providers and check for success/failure
+	log.Infof("found providers for cid %s: %s", target, providers)
 }
 
 // bootstrap connects the host to the configured bootnodes

@@ -3,6 +3,8 @@ module github.com/ChainSafe/dht-tester
 go 1.19
 
 require (
+	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/rpc v1.2.0
 	github.com/ipfs/go-cid v0.3.2
 	github.com/ipfs/go-log v1.0.5
 	github.com/libp2p/go-libp2p v0.23.2
