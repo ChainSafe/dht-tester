@@ -8,36 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/libp2p/go-libp2p/core/crypto"
 )
-
-// StringToAddrInfo converts a single string peer id to AddrInfo
-func StringToAddrInfo(s string) (peer.AddrInfo, error) {
-	maddr, err := ma.NewMultiaddr(s)
-	if err != nil {
-		return peer.AddrInfo{}, err
-	}
-	p, err := peer.AddrInfoFromP2pAddr(maddr)
-	if err != nil {
-		return peer.AddrInfo{}, err
-	}
-	return *p, err
-}
-
-// stringsToAddrInfos converts a string of peer ids to AddrInfo
-func stringsToAddrInfos(peers []string) ([]peer.AddrInfo, error) {
-	pinfos := make([]peer.AddrInfo, len(peers))
-	for i, p := range peers {
-		p, err := StringToAddrInfo(p)
-		if err != nil {
-			return nil, err
-		}
-		pinfos[i] = p
-	}
-	return pinfos, nil
-}
 
 // generateKey generates an ed25519 private key and writes it to the data directory
 // If the seed is zero, we use real cryptographic randomness. Otherwise, we use a

@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc/v2"
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // Server represents the JSON-RPC server

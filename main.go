@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
-	libp2phost "github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-kad-dht"
+	libp2phost "github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ipfs/go-cid"
@@ -21,15 +21,15 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-const cidCount = 64 // arbitrary
-
 var log = logging.Logger("main")
 
 var (
-	flagCount        = "count"
-	flagDuration     = "duration"
-	flagAutoTest     = "auto"
-	flagPrefixLength = "prefix-length"
+	flagCount         = "count"
+	flagDuration      = "duration"
+	flagAutoTest      = "auto"
+	flagPrefixLength  = "prefix-length"
+	flagTestCIDsCount = "num-test-cids"
+	flagLog           = "log"
 
 	app = &cli.App{
 		Name:                 "dht-tester",
@@ -58,11 +58,24 @@ var (
 				Usage: "set prefix length for lookups; set to 0 to look up full double-hash",
 				Value: 0,
 			},
+			&cli.IntFlag{
+				Name:  flagTestCIDsCount,
+				Usage: "number of test CIDs to generate",
+				Value: 20,
+			},
+			&cli.StringFlag{
+				Name:  flagLog,
+				Usage: "log level: one of [error|warn|info|debug]",
+				Value: "info",
+			},
 		},
 	}
 )
 
+// test CIDs generated at startup
 var cids []cid.Cid
+
+// list of all nodes's AddrInfo, used as bootnodes
 var bootnodes []peer.AddrInfo
 
 func bootstrapPeersFunc() []peer.AddrInfo {
@@ -75,10 +88,32 @@ func main() {
 	}
 }
 
-func run(c *cli.Context) error {
-	_ = logging.SetLogLevel("main", "info")
+func setLogLevelsFromContext(c *cli.Context) error {
+	const (
+		levelError = "error"
+		levelWarn  = "warn"
+		levelInfo  = "info"
+		levelDebug = "debug"
+	)
 
-	cids = getTestCIDs(cidCount)
+	level := c.String(flagLog)
+	switch level {
+	case levelError, levelWarn, levelInfo, levelDebug:
+	default:
+		return fmt.Errorf("invalid log level %q", level)
+	}
+
+	_ = logging.SetLogLevel("main", level)
+	return nil
+}
+
+func run(c *cli.Context) error {
+	err := setLogLevelsFromContext(c)
+	if err != nil {
+		return err
+	}
+
+	cids = getTestCIDs(c.Int(flagTestCIDsCount))
 
 	const basePort = 6000
 
@@ -107,7 +142,7 @@ func run(c *cli.Context) error {
 		hosts = append(hosts, h)
 	}
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Millisecond * 300)
 
 	for i, h := range hosts {
 		err := h.Start()
@@ -115,7 +150,7 @@ func run(c *cli.Context) error {
 			return err
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond * 300)
 		log.Infof("node %d started: %s", i, h.addrInfo())
 	}
 
@@ -160,7 +195,7 @@ func getTestCIDs(count int) []cid.Cid {
 		}
 
 		cids[i] = cid.NewCidV1(codecType, mh)
-		log.Infof("test CID: %s", cids[i])
+		log.Debugf("test CID: %s", cids[i])
 	}
 	return cids
 }
@@ -274,7 +309,7 @@ func (h *host) Start() error {
 }
 
 func getRandTestCID() cid.Cid {
-	randIdx, err := rand.Int(rand.Reader, big.NewInt(cidCount))
+	randIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(cids))))
 	if err != nil {
 		panic(err)
 	}
