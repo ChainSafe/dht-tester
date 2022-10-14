@@ -56,14 +56,19 @@ func NewServer(hosts []*host) (*Server, error) {
 	}, nil
 }
 
-// Start starts the JSON-RPC and Websocket server.
+// Start starts the JSON-RPC server.
 func (s *Server) Start() error {
 	log.Infof("Starting RPC server on %s", s.HttpURL())
-	err := s.httpServer.Serve(s.listener) // Serve never returns nil
-	return fmt.Errorf("RPC server failed: %w", err)
+	go func() {
+		err := s.httpServer.Serve(s.listener)
+		if err != nil {
+			log.Warnf("server error: %s", err)
+		}
+	}()
+	return nil
 }
 
-// Stop stops the JSON-RPC and websockets server.
+// Stop stops the JSON-RPC server.
 func (s *Server) Stop() error {
 	return s.httpServer.Close()
 }

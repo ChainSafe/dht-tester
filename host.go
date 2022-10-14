@@ -13,10 +13,13 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht"
 	libp2phost "github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	//"github.com/libp2p/go-libp2p/core/routing"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ipfs/go-cid"
 )
+
+const numPeers = 10
 
 type config struct {
 	Ctx          context.Context
@@ -30,6 +33,7 @@ type config struct {
 type host struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
+	index    int
 	h        libp2phost.Host
 	dht      *dht.IpfsDHT
 	autoTest bool
@@ -78,6 +82,7 @@ func newHost(cfg *config) (*host, error) {
 	return &host{
 		ctx:      ourCtx,
 		cancel:   cancel,
+		index:    cfg.Index,
 		h:        h,
 		dht:      dht,
 		autoTest: cfg.AutoTest,
@@ -138,7 +143,7 @@ func getRandTestCID() cid.Cid {
 func (h *host) stop() error {
 	h.cancel()
 	if err := h.h.Close(); err != nil {
-		return fmt.Errorf("failed to close libp2p host: %w", err)
+		return fmt.Errorf("failed to close libp2p host %d: %w", h.index, err)
 	}
 	return nil
 }
@@ -147,30 +152,41 @@ func (h *host) provide(cids []cid.Cid) {
 	for _, cid := range cids {
 		err := h.dht.Provide(h.ctx, cid, true)
 		if err != nil {
-			log.Warnf("%s failed to provide cid: %s", h.h.ID(), err)
+			log.Warnf("host %d failed to provide cid: %s", h.index, err)
 			continue
 		}
 
-		log.Infof("%s provided cid %s", h.h.ID(), cid)
+		log.Infof("host %d provided cid %s", h.index, cid)
 	}
 }
 
 func (h *host) lookup(target cid.Cid) []peer.AddrInfo {
+	//ctx, ch := routing.RegisterForQueryEvents(h.ctx)
+
 	providers, err := h.dht.FindProviders(h.ctx, target)
 	if err != nil {
-		log.Warnf("failed to find any providers for cid %s: %s", target, err)
+		log.Warnf("host %d failed to find any providers for cid %s: %s", h.index, target, err)
 		return nil
 	}
 
+	// for {
+	// 	select {
+	// 	case event := <-ch:
+	// 		log.Infof("QueryEvent: %s", event)
+	// 	case time.After(time.Second):
+	// 		break
+	// 	}
+	// }
+
 	// TODO: track providers and check for success/failure
-	log.Infof("found providers for cid %s: %s", target, providers)
+	log.Infof("host %d found providers for cid %s: %s", h.index, target, providers)
 	return providers
 }
 
 // bootstrap connects the host to the configured bootnodes
 func (h *host) bootstrap() error {
 	failed := 0
-	for _, addrInfo := range bootnodes {
+	for i, addrInfo := range bootnodes {
 		if addrInfo.ID == h.h.ID() {
 			continue
 		}
@@ -180,6 +196,10 @@ func (h *host) bootstrap() error {
 		if err != nil {
 			log.Debugf("failed to bootstrap to peer: err=%s", err)
 			failed++
+		}
+
+		if i-failed > numPeers {
+			break
 		}
 	}
 

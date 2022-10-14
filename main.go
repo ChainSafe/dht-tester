@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"os"
 	"time"
 
@@ -39,7 +41,7 @@ var (
 			&cli.UintFlag{
 				Name:  flagDuration,
 				Usage: "length of time to run simulation in seconds",
-				Value: 60,
+				Value: 600,
 			},
 			&cli.BoolFlag{
 				Name:  flagAutoTest,
@@ -72,6 +74,15 @@ var cids []cid.Cid
 var bootnodes []peer.AddrInfo
 
 func bootstrapPeersFunc() []peer.AddrInfo {
+	if len(bootnodes) == 0 {
+		return bootnodes
+	}
+
+	bns := []peer.AddrInfo{}
+	for i := 0; i < numPeers; i++ {
+		randIdx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(bootnodes))))
+		bns = append(bns, bootnodes[randIdx.Int64()])
+	}
 	return bootnodes
 }
 
@@ -97,6 +108,7 @@ func setLogLevelsFromContext(c *cli.Context) error {
 	}
 
 	_ = logging.SetLogLevel("main", level)
+	_ = logging.SetLogLevel("dht", level)
 	return nil
 }
 
@@ -143,7 +155,6 @@ func run(c *cli.Context) error {
 			return err
 		}
 
-		time.Sleep(time.Millisecond * 300)
 		log.Infof("node %d started: %s", i, h.addrInfo())
 	}
 

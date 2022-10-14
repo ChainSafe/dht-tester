@@ -12,7 +12,7 @@ To build:
 ```bash
 git clone https://github.com/ChainSafe/dht-tester.git
 git clone https://github.com/ChainSafe/go-libp2p-kad-dht.git
-cd go-libp2p-kad-dht && git checkout noot/provider-encrypt && cd ..
+cd go-libp2p-kad-dht && git checkout noot/demo-logs && cd ..
 git clone https://github.com/ChainSafe/go-libp2p-kbucket.git
 cd dht-tester
 go build
