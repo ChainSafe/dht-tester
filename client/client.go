@@ -58,7 +58,7 @@ type LookupRequest struct {
 }
 
 type LookupResponse struct {
-	Providers []peer.AddrInfo
+	Providers []peer.AddrInfo `json:"providers"`
 }
 
 func (c *Client) Lookup(hostIndex int, target cid.Cid) ([]peer.AddrInfo, error) {
@@ -89,4 +89,41 @@ func (c *Client) Lookup(hostIndex int, target cid.Cid) ([]peer.AddrInfo, error) 
 	}
 
 	return res.Providers, nil
+}
+
+type IDRequest struct {
+	HostIndex int `json:"hostIndex"`
+}
+
+type IDResponse struct {
+	PeerID peer.ID `json:"peerID"`
+}
+
+func (c *Client) ID(hostIndex int) (peer.ID, error) {
+	const method = "dht_id"
+
+	req := &IDRequest{
+		HostIndex: hostIndex,
+	}
+
+	params, err := json.Marshal(req)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := rpc.PostRPC(c.endpoint, method, string(params))
+	if err != nil {
+		return "", err
+	}
+
+	if resp.Error != nil {
+		return "", resp.Error
+	}
+
+	var res *IDResponse
+	if err = json.Unmarshal(resp.Result, &res); err != nil {
+		return "", err
+	}
+
+	return res.PeerID, nil
 }

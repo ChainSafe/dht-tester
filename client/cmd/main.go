@@ -47,6 +47,15 @@ var (
 					cliFlagHostIndex,
 				},
 			},
+			{
+				Name:   "id",
+				Usage:  "get peer ID for a specific host index",
+				Action: runID,
+				Flags: []cli.Flag{
+					cliFlagEndpoint,
+					cliFlagHostIndex,
+				},
+			},
 		},
 	}
 
@@ -131,5 +140,18 @@ func runLookup(c *cli.Context) error {
 		fmt.Printf("\tprovider %d: %s\n", i, prov)
 	}
 
+	return nil
+}
+
+func runID(c *cli.Context) error {
+	cli := client.NewClient(c.String(flagEndpoint))
+
+	hostIndex := c.Int(flagHostIndex)
+	id, err := cli.ID(hostIndex)
+	if err != nil {
+		return fmt.Errorf("failed to get peer ID: %w", err)
+	}
+
+	fmt.Printf("peer ID of host %d: %s\n", hostIndex, id)
 	return nil
 }

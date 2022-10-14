@@ -103,7 +103,7 @@ type LookupRequest struct {
 }
 
 type LookupResponse struct {
-	Providers []peer.AddrInfo
+	Providers []peer.AddrInfo `json:"providers"`
 }
 
 func (s *DHTService) Lookup(_ *http.Request, req *LookupRequest, resp *LookupResponse) error {
@@ -112,5 +112,22 @@ func (s *DHTService) Lookup(_ *http.Request, req *LookupRequest, resp *LookupRes
 	}
 
 	resp.Providers = s.hosts[req.HostIndex].lookup(req.Target)
+	return nil
+}
+
+type IDRequest struct {
+	HostIndex int `json:"hostIndex"`
+}
+
+type IDResponse struct {
+	PeerID peer.ID `json:"peerID"`
+}
+
+func (s *DHTService) Id(_ *http.Request, req *IDRequest, resp *IDResponse) error {
+	if req.HostIndex >= len(s.hosts) {
+		return errors.New("host index too high")
+	}
+
+	resp.PeerID = s.hosts[req.HostIndex].h.ID()
 	return nil
 }
