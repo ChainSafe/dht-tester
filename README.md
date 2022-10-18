@@ -8,10 +8,11 @@ This is a small program used for running and testing the `Provide`/`FindProvider
 
 ## Usage
 
-To build:
+To build (do these in `${GOPATH}/github.com/`):
 ```bash
 git clone https://github.com/ChainSafe/dht-tester.git
 git clone https://github.com/ChainSafe/go-libp2p-kad-dht.git
+git clone https://github.com/ChainSafe/go-datastore.git
 cd go-libp2p-kad-dht && git checkout noot/demo-logs && cd ..
 git clone https://github.com/ChainSafe/go-libp2p-kbucket.git
 cd dht-tester

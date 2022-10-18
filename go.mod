@@ -122,3 +122,5 @@ require (
 replace github.com/libp2p/go-libp2p-kad-dht => ../../ChainSafe/go-libp2p-kad-dht
 
 replace github.com/libp2p/go-libp2p-kbucket => ../../ChainSafe/go-libp2p-kbucket
+
+replace github.com/ipfs/go-datastore => ../../ChainSafe/go-datastore

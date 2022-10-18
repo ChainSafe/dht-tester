@@ -109,6 +109,7 @@ func setLogLevelsFromContext(c *cli.Context) error {
 
 	_ = logging.SetLogLevel("main", level)
 	_ = logging.SetLogLevel("dht", level)
+	_ = logging.SetLogLevel("providers", level)
 	return nil
 }
 
@@ -127,6 +128,10 @@ func run(c *cli.Context) error {
 	count := int(c.Uint(flagCount))
 	autoTest := c.Bool(flagAutoTest)
 	prefixLength := int(c.Uint(flagPrefixLength))
+
+	if prefixLength > 32 {
+		return errInvalidPrefixLength
+	}
 
 	for i := 0; i < count; i++ {
 		log.Infof("starting node %d", i)
