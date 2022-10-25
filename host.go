@@ -123,7 +123,7 @@ func (h *host) start() error {
 					getRandTestCID(),
 				})
 
-				_ = h.lookup(getRandTestCID())
+				_, _ = h.lookup(getRandTestCID(), 0)
 			}
 		}
 	}()
@@ -160,13 +160,17 @@ func (h *host) provide(cids []cid.Cid) {
 	}
 }
 
-func (h *host) lookup(target cid.Cid) []peer.AddrInfo {
+func (h *host) lookup(target cid.Cid, prefixLength int) ([]peer.AddrInfo, error) {
+	err := h.dht.SetPrefixLength(prefixLength)
+	if err != nil {
+		return nil, err
+	}
 	//ctx, ch := routing.RegisterForQueryEvents(h.ctx)
 
 	providers, err := h.dht.FindProviders(h.ctx, target)
 	if err != nil {
 		log.Warnf("host %d failed to find any providers for cid %s: %s", h.index, target, err)
-		return nil
+		return nil, err
 	}
 
 	// for {
@@ -180,7 +184,7 @@ func (h *host) lookup(target cid.Cid) []peer.AddrInfo {
 
 	// TODO: track providers and check for success/failure
 	log.Infof("host %d found providers for cid %s: %s", h.index, target, providers)
-	return providers
+	return providers, nil
 }
 
 // bootstrap connects the host to the configured bootnodes

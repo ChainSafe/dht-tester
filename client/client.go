@@ -53,20 +53,22 @@ func (c *Client) Provide(hostIndex int, cids []cid.Cid) error {
 }
 
 type LookupRequest struct {
-	HostIndex int     `json:"hostIndex"`
-	Target    cid.Cid `json:"cid"`
+	HostIndex    int     `json:"hostIndex"`
+	Target       cid.Cid `json:"cid"`
+	PrefixLength int     `json:"prefixLength"`
 }
 
 type LookupResponse struct {
 	Providers []peer.AddrInfo `json:"providers"`
 }
 
-func (c *Client) Lookup(hostIndex int, target cid.Cid) ([]peer.AddrInfo, error) {
+func (c *Client) Lookup(hostIndex int, target cid.Cid, prefixLength int) ([]peer.AddrInfo, error) {
 	const method = "dht_lookup"
 
 	req := &LookupRequest{
-		HostIndex: hostIndex,
-		Target:    target,
+		HostIndex:    hostIndex,
+		Target:       target,
+		PrefixLength: prefixLength,
 	}
 
 	params, err := json.Marshal(req)

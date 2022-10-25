@@ -103,8 +103,9 @@ func (s *DHTService) Provide(_ *http.Request, req *ProvideRequest, _ *interface{
 }
 
 type LookupRequest struct {
-	HostIndex int     `json:"hostIndex"`
-	Target    cid.Cid `json:"cid"`
+	HostIndex    int     `json:"hostIndex"`
+	Target       cid.Cid `json:"cid"`
+	PrefixLength int     `json:"prefixLength"`
 }
 
 type LookupResponse struct {
@@ -116,7 +117,12 @@ func (s *DHTService) Lookup(_ *http.Request, req *LookupRequest, resp *LookupRes
 		return errors.New("host index too high")
 	}
 
-	resp.Providers = s.hosts[req.HostIndex].lookup(req.Target)
+	provs, err := s.hosts[req.HostIndex].lookup(req.Target, req.PrefixLength)
+	if err != nil {
+		return err
+	}
+
+	resp.Providers = provs
 	return nil
 }
 

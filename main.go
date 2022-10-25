@@ -22,7 +22,6 @@ var (
 	flagCount         = "count"
 	flagDuration      = "duration"
 	flagAutoTest      = "auto"
-	flagPrefixLength  = "prefix-length"
 	flagTestCIDsCount = "num-test-cids"
 	flagLog           = "log"
 
@@ -47,11 +46,6 @@ var (
 				Name:  flagAutoTest,
 				Usage: "automatically provide and look up test CIDs",
 				Value: false,
-			},
-			&cli.UintFlag{
-				Name:  flagPrefixLength,
-				Usage: "set prefix length for lookups; set to 0 to look up full double-hash",
-				Value: 0,
 			},
 			&cli.IntFlag{
 				Name:  flagTestCIDsCount,
@@ -127,20 +121,14 @@ func run(c *cli.Context) error {
 
 	count := int(c.Uint(flagCount))
 	autoTest := c.Bool(flagAutoTest)
-	prefixLength := int(c.Uint(flagPrefixLength))
-
-	if prefixLength > 32 {
-		return errInvalidPrefixLength
-	}
 
 	for i := 0; i < count; i++ {
 		log.Infof("starting node %d", i)
 		cfg := &config{
-			Ctx:          context.Background(),
-			Port:         uint16(basePort + i),
-			Index:        i,
-			AutoTest:     autoTest,
-			PrefixLength: prefixLength,
+			Ctx:      context.Background(),
+			Port:     uint16(basePort + i),
+			Index:    i,
+			AutoTest: autoTest,
 		}
 
 		h, err := newHost(cfg)

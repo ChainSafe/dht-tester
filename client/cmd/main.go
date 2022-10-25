@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	flagCIDs      = "cids"
-	flagTarget    = "cid"
-	flagEndpoint  = "endpoint"
-	flagHostIndex = "host-index"
+	flagCIDs         = "cids"
+	flagTarget       = "cid"
+	flagEndpoint     = "endpoint"
+	flagHostIndex    = "host-index"
+	flagPrefixLength = "prefix-length"
 
 	app = &cli.App{
 		Name:                 "dht-tester-cli",
@@ -45,6 +46,7 @@ var (
 					cliFlagTarget,
 					cliFlagEndpoint,
 					cliFlagHostIndex,
+					cliFlagPrefixLength,
 				},
 			},
 			{
@@ -82,6 +84,14 @@ var (
 		Usage: "index of host which should provide/look up",
 		Value: 0,
 	}
+
+	cliFlagPrefixLength = &cli.UintFlag{
+		Name:  flagPrefixLength,
+		Usage: "set prefix length for lookups; set to 0 to look up full double-hash",
+		Value: 0,
+	}
+
+	errInvalidPrefixLength = errors.New("prefix-length must be less than 32")
 )
 
 func main() {
@@ -130,7 +140,12 @@ func runLookup(c *cli.Context) error {
 		return err
 	}
 
-	providers, err := cli.Lookup(c.Int(flagHostIndex), target)
+	prefixLength := int(c.Uint(flagPrefixLength))
+	if prefixLength > 32 {
+		return errInvalidPrefixLength
+	}
+
+	providers, err := cli.Lookup(c.Int(flagHostIndex), target, prefixLength)
 	if err != nil {
 		return fmt.Errorf("failed to look up: %w", err)
 	}
