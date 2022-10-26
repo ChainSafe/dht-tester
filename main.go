@@ -151,6 +151,12 @@ func run(c *cli.Context) error {
 		log.Infof("node %d started: %s", i, h.addrInfo())
 	}
 
+	// get 1 host to provide each test CID
+	for i, c := range cids {
+		idx := i % count
+		hosts[idx].provide([]cid.Cid{c})
+	}
+
 	server, err := NewServer(hosts)
 	if err != nil {
 		return err
