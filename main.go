@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"os"
@@ -191,8 +192,10 @@ func getTestCIDs(count int) []cid.Cid {
 	const codecType = cid.Raw // TODO: is this right?
 
 	cids := make([]cid.Cid, count)
+	var buf [8]byte
 	for i := 0; i < count; i++ {
-		mh, err := mh.Sum(append([]byte(base), byte(i)), code, length)
+		binary.LittleEndian.PutUint64(buf[:], uint64(i))
+		mh, err := mh.Sum(append([]byte(base), buf[:]...), code, length)
 		if err != nil {
 			panic(err)
 		}
