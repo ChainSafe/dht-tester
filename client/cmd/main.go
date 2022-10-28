@@ -91,7 +91,7 @@ var (
 		Value: 0,
 	}
 
-	errInvalidPrefixLength = errors.New("prefix-length must be less than 32")
+	errInvalidPrefixLength = errors.New("prefix-length must be less than 256")
 )
 
 func main() {
@@ -141,7 +141,7 @@ func runLookup(c *cli.Context) error {
 	}
 
 	prefixLength := int(c.Uint(flagPrefixLength))
-	if prefixLength > 32 {
+	if prefixLength > 256 {
 		return errInvalidPrefixLength
 	}
 
