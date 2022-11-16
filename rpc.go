@@ -19,6 +19,7 @@ import (
 type Server struct {
 	listener   net.Listener
 	httpServer *http.Server
+	nodeCount  int
 }
 
 // NewServer ...
@@ -86,6 +87,15 @@ func newDHTService(hosts []*host) *DHTService {
 	return &DHTService{
 		hosts: hosts,
 	}
+}
+
+type NumHostsResponse struct {
+	NumHosts int `json:"numHosts"`
+}
+
+func (s *DHTService) NumHosts(_ *http.Request, _ *interface{}, resp *NumHostsResponse) error {
+	resp.NumHosts = len(s.hosts)
+	return nil
 }
 
 type ProvideRequest struct {

@@ -22,6 +22,30 @@ func NewClient(endpoint string) *Client {
 	}
 }
 
+type NumHostsResponse struct {
+	NumHosts int `json:"numHosts"`
+}
+
+func (c *Client) NumHosts() (int, error) {
+	const method = "dht_numHosts"
+
+	resp, err := rpc.PostRPC(c.endpoint, method, "{}")
+	if err != nil {
+		return 0, err
+	}
+
+	if resp.Error != nil {
+		return 0, resp.Error
+	}
+
+	var res *NumHostsResponse
+	if err = json.Unmarshal(resp.Result, &res); err != nil {
+		return 0, err
+	}
+
+	return res.NumHosts, nil
+}
+
 type ProvideRequest struct {
 	HostIndex int       `json:"hostIndex"`
 	CIDs      []cid.Cid `json:"cids"`
