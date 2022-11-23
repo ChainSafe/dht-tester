@@ -165,7 +165,6 @@ func (h *host) lookup(target cid.Cid, prefixLength int) ([]peer.AddrInfo, error)
 	if err != nil {
 		return nil, err
 	}
-	//ctx, ch := routing.RegisterForQueryEvents(h.ctx)
 
 	providers, err := h.dht.FindProviders(h.ctx, target)
 	if err != nil {
@@ -173,16 +172,6 @@ func (h *host) lookup(target cid.Cid, prefixLength int) ([]peer.AddrInfo, error)
 		return nil, err
 	}
 
-	// for {
-	// 	select {
-	// 	case event := <-ch:
-	// 		log.Infof("QueryEvent: %s", event)
-	// 	case time.After(time.Second):
-	// 		break
-	// 	}
-	// }
-
-	// TODO: track providers and check for success/failure
 	log.Infof("host %d found providers for cid %s: %s", h.index, target, providers)
 	return providers, nil
 }
@@ -203,6 +192,11 @@ func (h *host) bootstrap() error {
 		}
 
 		if i-failed > numPeers {
+			break
+		}
+
+		// 10 peers is enough
+		if i-failed > 10 {
 			break
 		}
 	}

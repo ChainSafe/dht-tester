@@ -116,7 +116,8 @@ func lookup(c *client.Client, provides map[cid.Cid][]peer.ID, numHosts int, done
 	for key, provs := range provides {
 		for i := 0; i < numHosts; i++ {
 			// TODO: vary prefix lengths also
-			found, err := c.Lookup(i, key, 0)
+			prefixLength := 129
+			found, err := c.Lookup(i, key, prefixLength)
 			if err != nil {
 				return fmt.Errorf("lookup for key %s at host %d failed: %s", key, i, err)
 			}
