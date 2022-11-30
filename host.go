@@ -73,6 +73,9 @@ func newHost(cfg *config) (*host, error) {
 		dht.PrefixLookups(cfg.PrefixLength),
 		dht.Mode(dht.ModeAutoServer),
 		dht.BootstrapPeersFunc(bootstrapPeersFunc),
+		//dht.Resiliency(2), // try increasing this for prefix lookups
+		// dht.BucketSize(25),
+		// dht.ProtocolPrefix("/doublehash"),
 	}...)
 	if err != nil {
 		return nil, err
@@ -170,6 +173,9 @@ func (h *host) lookup(target cid.Cid, prefixLength int) ([]peer.AddrInfo, error)
 	if err != nil {
 		log.Warnf("host %d failed to find any providers for cid %s: %s", h.index, target, err)
 		return nil, err
+	} else if len(providers) == 0 {
+		log.Warnf("host %d failed to find any providers for cid %s", h.index, target)
+		return providers, nil
 	}
 
 	log.Infof("host %d found providers for cid %s: %s", h.index, target, providers)

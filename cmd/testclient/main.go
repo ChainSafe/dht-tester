@@ -74,8 +74,7 @@ func run(c *cli.Context) error {
 
 	provides := make(map[cid.Cid][]peer.ID)
 
-	// get 1 host to provide each test CID
-	// TODO: update to have random subset of hosts provide the CID
+	// get at least one host to provide each test CID
 	for i, c := range cids {
 		idx := i % numHosts
 		err = client.Provide(idx, []cid.Cid{c})
@@ -87,7 +86,31 @@ func run(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		provides[c] = []peer.ID{id}
+
+		providers, has := provides[c]
+		if !has {
+			provides[c] = []peer.ID{id}
+		} else {
+			provides[c] = append(providers, id)
+		}
+
+		idx = (i + numHosts/2) % numHosts
+		err = client.Provide(idx, []cid.Cid{c})
+		if err != nil {
+			return err
+		}
+
+		id, err = client.ID(idx)
+		if err != nil {
+			return err
+		}
+
+		providers, has = provides[c]
+		if !has {
+			provides[c] = []peer.ID{id}
+		} else {
+			provides[c] = append(providers, id)
+		}
 	}
 
 	doneCh := make(chan struct{})
@@ -113,20 +136,39 @@ func run(c *cli.Context) error {
 
 func lookup(c *client.Client, provides map[cid.Cid][]peer.ID, numHosts int, doneCh chan<- struct{}) error {
 	defer close(doneCh)
+	keyIdx := 0
 	for key, provs := range provides {
+		provsMap := make(map[peer.ID]struct{})
+		for _, p := range provs {
+			provsMap[p] = struct{}{}
+		}
+
 		for i := 0; i < numHosts; i++ {
 			// TODO: vary prefix lengths also
-			prefixLength := 129
+			prefixLength := 128
 			found, err := c.Lookup(i, key, prefixLength)
 			if err != nil {
-				return fmt.Errorf("lookup for key %s at host %d failed: %s", key, i, err)
+				return fmt.Errorf("%d: lookup for key %s at host %d failed: %s", keyIdx, key, i, err)
+			}
+
+			if len(found) == 0 {
+				return fmt.Errorf("%d: failed to find providers for key %s at host %d", keyIdx, key, i)
 			}
 
 			if len(found) != len(provs) {
-				return fmt.Errorf("found providers length %d didn't match expected %d", len(found), len(provs))
+				return fmt.Errorf("%d: found providers length %d didn't match expected %d", keyIdx, len(found), len(provs))
 			}
-			// TODO check peer IDs
+
+			// check peer IDs
+			for _, f := range found {
+				_, has := provsMap[f.ID]
+				if !has {
+					return fmt.Errorf("%d: found provider that doesn't have key %s at host %d", keyIdx, key, i)
+				}
+			}
+
 		}
+		keyIdx++
 	}
 
 	return nil
