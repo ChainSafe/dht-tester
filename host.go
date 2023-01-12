@@ -70,12 +70,9 @@ func newHost(cfg *config) (*host, error) {
 	}
 
 	dht, err := dht.New(cfg.Ctx, h, []dht.Option{
-		dht.PrefixLookups(cfg.PrefixLength),
+		//dht.PrefixLookups(cfg.PrefixLength),
 		dht.Mode(dht.ModeAutoServer),
 		dht.BootstrapPeersFunc(bootstrapPeersFunc),
-		//dht.Resiliency(2), // try increasing this for prefix lookups
-		// dht.BucketSize(25),
-		// dht.ProtocolPrefix("/doublehash"),
 	}...)
 	if err != nil {
 		return nil, err

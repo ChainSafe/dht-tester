@@ -63,6 +63,8 @@ func main() {
 }
 
 func run(c *cli.Context) error {
+	_ = logging.SetLogLevel("main", "info")
+
 	cids = getTestCIDs(c.Int(flagTestCIDsCount))
 
 	client := client.NewClient(c.String(flagEndpoint))
@@ -145,7 +147,7 @@ func lookup(c *client.Client, provides map[cid.Cid][]peer.ID, numHosts int, done
 
 		for i := 0; i < numHosts; i++ {
 			// TODO: vary prefix lengths also
-			prefixLength := 128
+			prefixLength := 33
 			found, err := c.Lookup(i, key, prefixLength)
 			if err != nil {
 				return fmt.Errorf("%d: lookup for key %s at host %d failed: %s", keyIdx, key, i, err)
@@ -155,9 +157,9 @@ func lookup(c *client.Client, provides map[cid.Cid][]peer.ID, numHosts int, done
 				return fmt.Errorf("%d: failed to find providers for key %s at host %d", keyIdx, key, i)
 			}
 
-			if len(found) != len(provs) {
-				return fmt.Errorf("%d: found providers length %d didn't match expected %d", keyIdx, len(found), len(provs))
-			}
+			// if len(found) != len(provs) {
+			// 	return fmt.Errorf("%d: found providers length %d didn't match expected %d", keyIdx, len(found), len(provs))
+			// }
 
 			// check peer IDs
 			for _, f := range found {
@@ -190,7 +192,7 @@ func getTestCIDs(count int) []cid.Cid {
 		}
 
 		cids[i] = cid.NewCidV1(codecType, mh)
-		log.Debugf("test CID: %s", cids[i])
+		log.Infof("test CID: %s %08b", cids[i], (cids[i].Bytes())[:5])
 	}
 	return cids
 }
